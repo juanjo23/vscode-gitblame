@@ -101,6 +101,12 @@ export class GitBlameBlamer {
         return this._workingOn[fileName];
     }
 
+    async getCommitBlameLinesByHash(hash: string, fileName: string) {
+        const blameInfo = await this.getBlameInfo(fileName);
+
+        return Object.values(blameInfo['lines']).filter((line) => line.hash === hash).map((line) => line.finalLine);
+    }
+
     dispose() {
         // Nothing to release.
     }

@@ -4,14 +4,25 @@ import {GitBlameController} from './controller';
 import {findGitPath} from './gitpath';
 import {validEditor} from './editorvalidator';
 import {TextDecorator} from './textdecorator';
-import {window, ExtensionContext, Disposable, StatusBarAlignment,
-        workspace, TextEditor, TextEditorSelectionChangeEvent,
-        commands, Uri} from 'vscode';
+import {window, ExtensionContext, Disposable, StatusBarAlignment, Range,
+        workspace, TextEditor, TextDocument, TextEditorSelectionChangeEvent,
+        commands, Uri, DecorationRenderOptions} from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import {isWebUri} from 'valid-url';
 
 const globalBlamer = new GitBlame();
+const relatedLineStyle = <DecorationRenderOptions>{
+    isWholeLine: true,
+    dark: {
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        border: '1px solid rgba(255, 255, 255, 0.2)'
+    },
+    light: {
+        backgroundColor: 'rgba(0, 0, 0, 0.1)',
+        border: '1px solid rgba(0, 0, 0, 0.2)'
+    }
+};
 
 export async function activate(context: ExtensionContext) {
 
@@ -32,12 +43,12 @@ export async function activate(context: ExtensionContext) {
         const controller = await lookupRepo(context, workspaceRoot);
 
         // Listen to file changes and invalidate files when they change
-        let fsw = workspace.createFileSystemWatcher('**/*', true);
+        let fileSystemWatcher = workspace.createFileSystemWatcher('**/*', true);
 
-        fsw.onDidChange((uri) => {
+        fileSystemWatcher.onDidChange((uri) => {
             controller.invalidateFile(uri);
         });
-        fsw.onDidDelete((uri) => {
+        fileSystemWatcher.onDidDelete((uri) => {
             controller.invalidateFile(uri);
         });
     } catch (err) {
@@ -64,12 +75,13 @@ async function showMessage(context: ExtensionContext, repositoryDirectory: strin
     const commitUrl = <string>config.get('commitUrl');
     const messageFormat = <string>config.get('infoMessageFormat');
     const editor = window.activeTextEditor;
+    const document = editor.document;
 
     if (!validEditor(editor)) return;
 
     const gitBlame = globalBlamer.createBlamer(repo.path);
     const lineNumber = editor.selection.active.line + 1; // line is zero based
-    const file = path.relative(repo.dir, editor.document.fileName);
+    const file = path.relative(repo.dir, document.fileName);
 
     const blameInfo = await gitBlame.getBlameInfo(file);
 
@@ -102,9 +114,35 @@ async function showMessage(context: ExtensionContext, repositoryDirectory: strin
         }
     }
 
+    // Highlight related lines when opening info window
+    const relatedLines = await gitBlame.getCommitBlameLinesByHash(hash, file);
+    const ranges = linesToRanges(document, relatedLines);
+    const lineDecorator = window.createTextEditorDecorationType(relatedLineStyle);
+
+    editor.setDecorations(lineDecorator, ranges);
+
     const item = await window.showInformationMessage.apply(this, infoMessageArguments)
+
+    lineDecorator.dispose();
 
     if (item === viewOnlineTitle) {
         commands.executeCommand('vscode.open', urlToUse);
     }
 }
+
+function linesToRanges(document: TextDocument, lineNumbers: Array<string>): Array<Range> {
+    let ranges = [];
+
+    for (let i = 0; i < lineNumbers.length; i++) {
+        const lineNumber = parseInt(lineNumbers[i], 10);
+        if (ranges.length && (ranges[ranges.length - 1].end.line + 1) === lineNumber) {
+            ranges[ranges.length - 1] = ranges[ranges.length - 1].union(document.lineAt(lineNumber).range);
+        }
+        else {
+            ranges.push(document.lineAt(lineNumber).range);
+        }
+    }
+
+    return ranges;
+}
+
