@@ -95,8 +95,8 @@
         },
         "gitblame.isWebPathPlural": {
           "type": "boolean",
-          "default": false,
-          "description": "BitBucket uses commits instead of commit in their web interface. Turn this on if you want the View button to work for BitBucket."
+          "default": true,
+          "description": "BitBucket uses commits instead of commit in their web interface."
         },
         "gitblame.logLevel": {
           "type": "array",

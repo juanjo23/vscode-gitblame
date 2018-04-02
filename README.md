@@ -57,7 +57,7 @@ See Git Blame information in the status bar for the currently selected line.
     <tr>
       <td><code>gitblame.isWebPathPlural</code></td>
       <td><code>boolean</code></td>
-      <td><code>false</code></td>
+      <td><code>true</code></td>
     </tr>
     <tr>
       <td colspan="3">
